@@ -1,0 +1,64 @@
+name: Build Path Tracing SDK
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+jobs:
+  Build-Windows:
+    runs-on: windows-latest
+    steps:
+      -
+        name : Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      -
+        name: Install dependencies
+        uses: crazy-max/ghaction-chocolatey@v2
+        with:
+          args: install windows-sdk-10.0 cmake -y
+      -
+        name: Install Vulkan
+        run: |
+          $ver = (Invoke-WebRequest -Uri "https://vulkan.lunarg.com/sdk/latest.json" | ConvertFrom-Json).windows
+          echo Vulkan SDK version $ver
+          $ProgressPreference = 'SilentlyContinue'
+          Invoke-WebRequest -Uri "https://sdk.lunarg.com/sdk/download/$ver/windows/VulkanSDK-$ver-Installer.exe" -OutFile VulkanSDK.exe
+          echo Downloaded
+          .\VulkanSDK.exe --root C:\VulkanSDK --accept-licenses --default-answer --confirm-command install
+      -
+        name: Generate CMake
+        run: |
+          $Env:VULKAN_SDK = "C:/VulkanSDK/"
+          $Env:Path += ";C:/VulkanSDK/Bin"
+          mkdir "build"
+          cd "build"
+          cmake .. -A x64
+          cd ..
+      -
+        name: Build Debug
+        run: |
+          cd "build"
+          cmake --build . --config Debug
+          cd ..
+      -
+        name: Build Release
+        run: |
+          cd "build"
+          cmake --build . --config Release
+          cd ..
+      -
+        name: Install Release
+        run: |
+          cd "build"
+          cmake --install . --config Release
+          cd ..
+      -
+        name: Upload Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: Path Tracing SDK Windows
+          path: build/install
